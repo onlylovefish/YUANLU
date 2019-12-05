@@ -18,6 +18,8 @@
 ## 4.关于损失函数：
 
 ### In the full ISP case,the loss function is defined in the Lab domain,Because the network operates in the RGB color space,for calculating the loss,the network output needs to go through an RGB-to-Lab color conversion operator. This operator is differentiable almost everywhere and it is easy to calculate its gradient.while we compute the L1 loss on all the three Lab channels,the MS-SSIM is evaluated only on the luminance L channels.
+## Loss(ˆI, I) = (1 − α) ||Lab(ˆI) − Lab(I)||1+α MSSSIM (L(ˆI), L(I))
+
 
 ## 5.用到了残差结构，跳跃结构，当然，这个结构到处可见。没有差别，但是这篇文章有个点，就是它同样证明了网络的宽度可以提高质量，以及参数共享等等。两层结构之类，lowlevel,和highlevel
 
