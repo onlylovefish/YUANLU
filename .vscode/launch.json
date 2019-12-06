@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "CodeLens (Launch) - InnerClassTest",
+            "request": "launch",
+            "mainClass": "InnerClassTest",
+            "projectName": "YUANL_b8fd4408"
+        }
+    ]
+}
