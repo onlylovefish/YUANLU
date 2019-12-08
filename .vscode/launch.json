@@ -2,6 +2,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "CodeLens (Launch) - StackTraceTest",
+            "request": "launch",
+            "mainClass": "StackTraceTest",
+            "projectName": "YUANL_b8fd4408"
+        },
+        {
+            "type": "java",
             "name": "CodeLens (Launch) - InnerClassTest",
             "request": "launch",
             "mainClass": "InnerClassTest",
