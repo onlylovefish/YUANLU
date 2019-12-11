@@ -3,26 +3,64 @@ from scipy.ndimage import filters,measurements,interpolation
 from math import pi
 
 def imresize(im,scale_factor=None,output_shape=None,kernel=None,antialiasing=True,kernel_shift_flag=False):
+    '''
+    first standardize values and fill missing arguments(if needed)by deriving（导出，推论，派生） scale from output shape or vice versa(vice versa的意思为反之亦然)
+    '''
+    scale_factor,output_shape=fix_scale_and_size(im,output_shape,scale_factor)
 
+    #for a given numeric kernel case(基于一个给定的分数，不可通约的比例的情况)，just do convolution and sub-sampling(downscaling only)
+    '''
+    ndarray对象是用于存放同类型元素的多维数组
+    ndarray中的每个元素在内存中都有相同存储大小的区域
+    '''
+    if type(kernel)==np.ndarray and scale_factor[0]<=1:
+        return numeric_kernel(im,kernel,scale_factor,output_shape,kernel_shift_flag)
+    #choose interpolation method,each method has the matching kernel size
+    method,kernel_width={
+        'cubic':(cubic,4.0),
+        'lanczos2':(lanczos2,4.0),
+        'lanczos3':(lanczos3,6.0),
+        'box':(box,1.0),
+        'linear':(linear,2.0),
+        None:(cubic,4.0) #default interpolation method is cubic
+    }.get(kernel)
+
+    #antialiasing is only used when downscaling，抗锯齿
+    antialiasing*=(scale_factor[0]<1)
+    #sort indices of dimensions according to scale of each dimension.since we are going dim by dim this is efficient,argsort属于快排，返回的是对应数值的位置的序号
+    sorted_dims=np.argsort(np.array(scale_factor)).tolist()
+    #iterate over dimensions to calculate local weights for resizing and resize each time in one direction
+    out_im=np.copy(im)
+    for dim in sorted_dims:
+        #No point doing calculations for scale-factor 1.nothing will happen anyway
+        if scale_factor[dim]==1.0:
+            continue
+        #for each coordinate(along 1 dim),calculate which coordinates in the input image affect its result and the weights that multiply the values there to get its result
+        weights,field_of_view=contributions(im.shape[dim],output_shape[dim],scale_factor[dim],method,kernel_width,antialiasing)
+        #use the affecting position values and the set of weights to calculate the result of resizing along this 1 dim
+        out_im=resize_along_dim(out_im,dim,weights,field_of_view)
+    return out_im
+    
 
 def fix_scale_and_size(input_shape,output_shape,scale_factor):
     #first fixing the scale-factor(if given) to be standardized the function expects(a list of scale factors in the same size as the number of input dimensions)
     if scale_factor is not None:
         #by default,if scale-factor is a scalar we assume 2d resizing and duplicate it
-        if np.isscalar(scale_factor):
-          scale_factor=[scale_factor,scale_factor]
+        if np.isscalar(scale_factor):#输入是否为标量
+          scale_factor=[scale_factor,scale_factor]#扩充为二维
         #we extend the size of scale-factor list to the size of the input by assigning 1 to all the unspecified scales
         scale_factor=list(scale_factor)
-        scale_factor.extend([1]*(len(input_shape)-len(scale_factor)))
+        scale_factor.extend([1]*(len(input_shape)-len(scale_factor)))#扩充即重复原来的列表一遍
     #Fixing output-shape(if given):extending it to the size of the input-shape,by assigning the original input-size
     #to all the unspecified dimensions
     if output_shape is not None:
         output_shape=list(np.uint(np.array(output_shape)))+list(input_shape[len(output_shape):])
 
 #Dealing with the case of non-give scale-factor,calculating according to output-shape,note that this is sub-optimal,because there can be different scales to the same output-shape
+#这是一个次选项，因为，同一个输出的形状大小会有不同的scale来对应
     if scale_factor is None:
         output_shape=1.0*np.array(output_shape)/np.array(input_shape)
-    
+ #如果输出大小不知道，则可以通过核的大小来计算出输出的形状的大小   
     #dealing with missing output-shape,calculating according to scale-factor
     if output_shape is None:
         #np.ceil用于以元素方式返回输入的上限
@@ -35,7 +73,7 @@ def contributions(in_length,out_length,scale,kernel,kernel_width,antialiasing):
     fliter from the weights based on the interpolation method and the distance of the sub-pixel location from the pixel centers around it this is only done for one dimension of the image.
     '''
     
-    #when anti-aliasing is activated(default and only for downscaling) the receptive field is stretched to size of 1/sf.this means filtering is more 'low-pass filter'
+    #when anti-aliasing（反锯齿） is activated(default and only for downscaling) the receptive field is stretched to size of 1/sf.this means filtering is more 'low-pass filter'
     fixed_kernel=(lambda arg:scale*kernel(scale*arg)) if antialiasing else kernel
     kernel_width*=1.0/scale if antialiasing else 1.0
     #these are the coordinates of the ouyput image
@@ -44,14 +82,14 @@ def contributions(in_length,out_length,scale,kernel,kernel_width,antialiasing):
     out_coordinates=np.arange(1,out_length+1)
     '''
     these are the matching positions of the output-coordinates on the input image coordinates
-    best explained by example:say we have 4 horizontal pixels for HR and we downscale by SF=2 and get 2 pixels:
+    best explained by example:say we have 4 horizontal(水平) pixels for HR and we downscale by SF=2 and get 2 pixels:
     [1,2,3,4]->[1,2].Remember each pixel is the middle of the pixel
     The scaling is down between the distances and not pixel numbers(the right boundary of pixel 4 is transformed to the right boundary of pixel 2,pixel 1 in the small image
     matches the boundary between pixels 1 and 2 in the big one and not to pixel 2缩放是在距离而不是像素数之间进行的（像素 4 的右边界转换为
- 像素 2 的右边界。小图像中的像素 1 与大图像中的像素 1 和 2 之间的边界匹配，而不是像素 2。这意味着该位置不仅仅是按比例因子乘以旧位置
- So if we measure distance from the left border, middle of pixel 1 is at distance d=0.5, border between 1 and 2 is
-at d=1, and so on (d = p - 0.5).  we calculate (d_new = d_old / sf) which means:因此，如果我们测量与左侧边框的距离，像素 1 的中间位于距离 d=0.5，1 和 2 之间的边框是
-在 d=1，等等 （d = p - 0.5）。 我们计算 （d_new = d_old / sf），这意味着:# (p_new-0.5 = (p_old-0.5) / sf)->p_new = p_old/sf + 0.5 * (1-1/sf)
+    像素 2 的右边界。小图像中的像素 1 与大图像中的像素 1 和 2 之间的边界匹配，而不是像素 2。这意味着该位置不仅仅是按比例因子乘以旧位置
+    So if we measure distance from the left border, middle of pixel 1 is at distance d=0.5, border between 1 and 2 is
+    at d=1, and so on (d = p - 0.5).  we calculate (d_new = d_old / sf) which means:因此，如果我们测量与左侧边框的距离，像素 1 的中间位于距离 d=0.5，1 和 2 之间的边框是
+    在 d=1，等等 （d = p - 0.5）。 我们计算 （d_new = d_old / sf），这意味着:# (p_new-0.5 = (p_old-0.5) / sf)->p_new = p_old/sf + 0.5 * (1-1/sf)
     matches )
     '''
     match_coordinates=1.0*out_coordinates/scale+0.5*(1-1.0/scale)#求解的是该像素点匹配的新的点的值
@@ -71,6 +109,7 @@ at d=1, and so on (d = p - 0.5).  we calculate (d_new = d_old / sf) which means:
     '''
     assigh weight to each pixel in the field of view.A matrix whose horizontal dim is the output pixels and the vertical dim is a list of weigths matching to the pixel
     in the field of view(that are specialed in field_of_view)
+    fixed_kernel=(lambda arg:scale*kernel(scale*arg)) if antialiasing else kernel
     '''
     weights=fixed_kernel(1.0*np.expand_dims(match_coordinates,axis=1)-field_of_view-1)
 
@@ -92,7 +131,7 @@ at d=1, and so on (d = p - 0.5).  we calculate (d_new = d_old / sf) which means:
     np.nonzero(b2)
     (array([0,0,1]),array([0,2,0]))这个的意思是b2[0,0],b2[0,2],b2[1,0]位置上的值不为0
     '''
-    non_zero_out_pixels=np.nonzero(np.any(weight,axis=0))
+    non_zero_out_pixels=np.nonzero(np.any(weights,axis=0))
     weights=np.squeeze(weights[:,non_zero_out_pixels])
     field_of_view=np.squeeze(field_of_view[:,non_zero_out_pixels]) #squeeze压缩维度
     return weights,field_of_view
@@ -134,13 +173,14 @@ def kernel_shift(kernel,sf):
     '''
     there are two reasons for shifting the kernel;
     1.center of mass is not in the center of the kernel which creates ambiguity.There is no possible way to know the degradation on process included shifting so we always assume
-    center of mass is center of the kernel.
-    2.we further shift kernel center so that top left result pixel corresponds to the middle of the sfxsf first pixels.Default is for odd size to be in the middle of the first pixel
-    and for even sized kernel to be at the top left corner of the first pixel.that is why different shfit size needed between od and even size.
+    center of mass is center of the kernel.首先总是假设块的中心是核的中心
+    2.we further shift kernel center so that top left result pixel corresponds to the middle of the sfxsf first pixels.这是因为上面说到像素点[1,2,3,4]然后下采样两倍后的话[1,2]中1对应的就是
+    1和2中间，Default is for odd size to be in the middle of the first pixel默认值为奇数大小位于第一个像素的中间，并且，
+    and for even sized kernel（偶数核在第一个像素的左上角） to be at the top left corner of the first pixel.that is why different shfit size needed between od and even（偶数的意思，平均？？感觉更好的翻译为偶数） size.
     given that these two conditions are fulfilled,we are happy and aligned,the way to test it is as follows
     the input image,when interpolated(regular bicubic) is exactly aligbed with ground truth.
     '''
-    #first calculate the current center of mass for the kernel
+    #first calculate the current center of mass for the kernel，计算质心？？measurements.center_of_mass是scipy.ndimage.measurements.center_of_mass
     current_center_of_mass=measurements.center_of_mass(kernel)
     #the second("+0.5*……")is for applying condition 2 from the comments above
     wanted_center_of_mass=np.array(kernel.shape)/2+0.5*(sf-(kernel.shape[0]%2))
@@ -149,7 +189,7 @@ def kernel_shift(kernel,sf):
     #before applying the shift,we first pad the kernel so that nothing is lost due to the shift
     #biggest shift among dims+1 for safety
     kernel=np.pad(kernel,np.int(np.ceil(np.max(shift_vec)))+1,'constant')
-    #finally shift the kernel and return
+    #finally shift the kernel and return,interpolation是从scipy引入
     return interpolation.shift(kernel,shift_vec)
 
 ''' the next functions are all interpolation method,x is the distance from left pixel center'''
