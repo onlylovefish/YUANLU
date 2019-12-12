@@ -1,7 +1,6 @@
 #%%
-x=0
-anti=1
-f=(lambda x:x+1) if anti else x-1
-print(f)
+x=[[1,2,4],[5,2,3],[1,1,1]]
+x.extend(x)
+print(list(x))
 
 # %%
