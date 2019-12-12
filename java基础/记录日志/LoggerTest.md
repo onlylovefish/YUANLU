@@ -76,10 +76,38 @@ java.util.logging.ConsoleHandler.level=FINE
     logger.add(handler);
     //这些记录会被发送到用户主目录的javan.log文件中，n是文件名的唯一编号，在默认情况下，文件就存储在C:\windows这样的默认位置上。默认情况下，记录被格式化为XML
 
+## 如果多个应用程序（或者是同一个应用程序的多个副本）使用同一个日志文件，就应该开启append标志，另外，应该再文件模式中使用%u,以便每个应用程序创建日志的唯一副本。
+## 关于日志文件的配置问题，具体参数，参看文件处理器配置参数的表
 
+## 过滤器
+再默认情况下，过滤器会根据日志级别来进行过滤，每个日志记录器和处理器都可以有一个可选的过滤器来完成附加的过滤。另外可以通过实现fliter接口并定义方法来自定义过滤器：
+boolean isLoggable(LogRecord record),将一个过滤器安装到一个日志记录器或者处理器中，只需要调用setFilter方法就可以了，同一时间最多只能安装一个过滤器。
+## 格式化器
+ConsleHandler类和FileHandler类可以生成文本和XML格式的日志记录，但是也可以自定义格式，这需要扩展Formatter类并覆盖下面这个方法：
 
+String format(LogRecord record)可以根据自己的愿望对记录中的信息进行格式化，并返回结果字符串 String formatMessage(LogRecord record)对记录中的部分消息进行格式化，参数替换和本地化应用操作。调用setFormatter方法将格式化器安装到处理器中
 
+## 日志记录说明
+将日志记录器命名为与主应用程序包一样的名字，可以通过调用Logger logger=Logger.getLogger("com.mycompany.myprog")得到日志记录器
 
+默认的日志配置将级别等于或高于INFO级别的所有消息记录到控制台
+下面的程序是将所有的消息记录到应用程序特定的文件中，将下面的放到程序的main方法中
+
+    '''java
+    if(System.getProperty("java.util.logging.config.class")==null&&System.getProperty("java.util.logging.config.file")==null){
+        try{
+            Logger.getLogger("").setLevel(Level.ALL);
+            final int LOG_ROTATION_COUNT=10;
+            Handler handler=new FileHandler("%h/myapp.log",0,LOG_ROTATION_COUNT);
+            Logger.getLogger("").addHandler(handler);
+        }
+        catch(IOException e){
+            logger.log(Level.SEVERE,"Can't create log file handler",e);
+        }
+    }
+    '''
+
+将程序员想要的日志记录设置为FINE
 
 
 
