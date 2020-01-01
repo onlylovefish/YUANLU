@@ -13,3 +13,6 @@ https://face2ai.com/DIP-8-5-%E5%BD%A9%E8%89%B2%E5%9B%BE%E5%83%8F-%E8%89%B2%E5%BD
 https://wenku.baidu.com/view/ac82241d2af90242a895e5b8.html多媒体技术MPEG相关PPT
 
 视频编解码问题，看一下百度http://www.voidcn.com/article/p-aqkgrcqs-yo.html
+
+
+https://competitions.codalab.org/competitions/22217#participate一个比赛的界面
