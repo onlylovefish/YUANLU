@@ -18,3 +18,6 @@ https://wenku.baidu.com/view/ac82241d2af90242a895e5b8.html多媒体技术MPEG相
 https://competitions.codalab.org/competitions/22217#participate一个比赛的界面
 
 https://github.com/qingsenyangit/AHDRNet
+
+
+关于CVPR今年出的关于超分的论文https://www.codercto.com/a/89126.html
